@@ -3,7 +3,3 @@ librosa==0.10.2.post1
 scikit-learn==1.5.0
 numpy==2.4.2
 tqdm==4.66.2
-<<<<<<< HEAD
-# Les autres dépendances (torch, etc.) sont déjà satisfaites
-=======
->>>>>>> 8e72c679a71a9b6a44d38846b6cfc620b15aea0b
