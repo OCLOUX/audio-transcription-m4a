@@ -110,5 +110,4 @@ Fichier `[nom_fichier_source]_transcription.srt` :
 - La solution est entièrement open-source et fonctionne localement sans envoyer de données à des serveurs externes
 <<<<<<< HEAD
 - Le clustering peut être contrôlé soit par `--speakers` (nombre de locuteurs) soit par `--threshold` (seuil de distance), mais pas les deux en même temps
-=======
->>>>>>> 8e72c679a71a9b6a44d38846b6cfc620b15aea0b
+
