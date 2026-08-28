@@ -1,6 +1,6 @@
-# Transcription Audio avec Diarisation des Locuteurs
+# Transcription Audio avec Diarisation des Locuteurs, les données restent locales
 
-Ce projet fournit un outil pour transcrire des fichiers audio M4A en différenciant les voix des locuteurs (diarisation). Il utilise :
+Ce projet fournit un outil pour transcrire LOCALEMENT des fichiers audio M4A en différenciant les voix des locuteurs (diarisation). Il utilise :
 - **FFmpeg** pour la conversion audio
 - **Faster-whisper** (modèle small) pour la transcription avec timestamps au niveau des mots
 - **Clustering de caractéristiques MFCC** pour la diarisation des locuteurs
