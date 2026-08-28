@@ -299,7 +299,7 @@ def write_transcription_output(segments, output_path, format="txt"):
         write_transcription_output_txt(segments, output_path)
 
 
-def process_single_file(input_path, output_dir=None):
+def process_single_file(input_path, output_dir=None, args=None):
     """
     Traite un seul fichier audio M4A
     """
@@ -378,7 +378,7 @@ def process_single_file(input_path, output_dir=None):
     return True
 
 
-def process_directory(input_dir, output_dir=None):
+def process_directory(input_dir, output_dir=None, args=None):
     """
     Traite tous les fichiers M4A dans un répertoire
     """
@@ -399,7 +399,7 @@ def process_directory(input_dir, output_dir=None):
 
     success_count = 0
     for m4a_file in m4a_files:
-        if process_single_file(m4a_file, output_dir):
+        if process_single_file(m4a_file, output_dir, args):
             success_count += 1
         print("-" * 50)
 
@@ -470,13 +470,15 @@ def main():
         # Traiter un seul fichier
         success = process_single_file(
             input_path,
-            output_dir=args.output
+            output_dir=args.output,
+            args=args
         )
     elif input_path.is_dir():
         # Traiter un répertoire
         success = process_directory(
             input_path,
-            output_dir=args.output
+            output_dir=args.output,
+            args=args
         )
     else:
         print(f"Erreur: Le chemin spécifié n'est ni un fichier ni un répertoire: {args.input}")
