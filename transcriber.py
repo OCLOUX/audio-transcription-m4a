@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Transcription audio avec diarisation des locuteurs
-Utilise faster-whisper pour la transcription et clustering pour la diarisation
+Utilise faster-whisper pour la transcription et clustering MFCC pour la diarisation
+Supporte les formats de sortie TXT, JSON et SRT
 """
 
 import os
@@ -43,12 +44,12 @@ def convert_to_wav(input_path, output_path):
         return False
 
 
-def transcribe_audio(wav_path, language="fr"):
+def transcribe_audio(wav_path, language="fr", model_size="small"):
     """
     Transcrit l'audio en utilisant faster-whisper avec timestamps au niveau des mots
     """
-    print("Chargement du modèle faster-whisper...")
-    model = WhisperModel("small", device="cpu", compute_type="int8")
+    print(f"Chargement du modèle faster-whisper ({model_size})...")
+    model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
     print("Transcription en cours...")
     segments, info = model.transcribe(
@@ -117,29 +118,51 @@ def extract_audio_features(wav_path, segments):
     return np.array(features), valid_segments
 
 
-def assign_speakers(features, segments, num_speakers=None):
+def assign_speakers(features, segments, num_speakers=None, distance_threshold=None):
     """
-    Attribue des locuteurs aux segments en utilisant le clustering
+    Attribue des locuteurs aux segments en utilisant le clustering hiérarchique
     """
     if len(features) == 0 or len(segments) == 0:
         return segments
 
-    if num_speakers is None:
-        # Essayer d'estimer le nombre de locuteurs (entre 2 et 4)
-        # Pour simplifier, on utilise 2 ou 3 selon la durée totale
-        # Dans une vraie implémentation, on pourrait utiliser des métriques comme le silhouette score
-        num_speakers = 2  # Par défaut, on suppose 2 locuteurs
-        # On pourrait ajuster basé sur d'autres facteurs si nécessaire
+    # Déterminer les paramètres de clustering
+    if distance_threshold is not None:
+        print(f"Clustering avec seuil de distance: {distance_threshold}")
+        # Standardiser les caractéristiques
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
 
-    print(f"Clustering en {num_speakers} locuteurs...")
+        # Appliquer le clustering hiérarchique agglomératif avec seuil de distance
+        clustering = AgglomerativeClustering(
+            n_clusters=None,  # Important: doit être None pour utiliser distance_threshold
+            distance_threshold=distance_threshold,
+            linkage='ward'
+        )
+        speaker_labels = clustering.fit_predict(features_scaled)
+        # Calculer le nombre réel de locuteurs trouvés
+        n_clusters_found = len(set(speaker_labels))
+        print(f"Clustering terminé: {n_clusters_found} locuteurs détectés")
+    elif num_speakers is not None:
+        print(f"Clustering en {num_speakers} locuteurs...")
+        # Standardiser les caractéristiques
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
 
-    # Standardiser les caractéristiques
-    scaler = StandardScaler()
-    features_scaled = scaler.fit_transform(features)
+        # Appliquer le clustering hiérarchique agglomératif avec nombre fixe de clusters
+        clustering = AgglomerativeClustering(n_clusters=num_speakers)
+        speaker_labels = clustering.fit_predict(features_scaled)
+    else:
+        # Estimation par défaut du nombre de locuteurs (entre 2 et 4)
+        # Pour simplifier, on utilise 2 locuteurs par défaut
+        print("Estimation du nombre de locuteurs: 2 (par défaut)")
+        num_speakers = 2
+        # Standardiser les caractéristiques
+        scaler = StandardScaler()
+        features_scaled = scaler.fit_transform(features)
 
-    # Appliquer le clustering hiérarchique agglomératif
-    clustering = AgglomerativeClustering(n_clusters=num_speakers)
-    speaker_labels = clustering.fit_predict(features_scaled)
+        # Appliquer le clustering hiérarchique agglomératif
+        clustering = AgglomerativeClustering(n_clusters=num_speakers)
+        speaker_labels = clustering.fit_predict(features_scaled)
 
     # Attribuer les étiquettes de locuteur aux segments
     for i, segment in enumerate(segments):
@@ -210,9 +233,9 @@ def assign_speaker_numbers(segments):
     return segments
 
 
-def write_transcription_output(segments, output_path):
+def write_transcription_output_txt(segments, output_path):
     """
-    Écrit la transcription finale dans un fichier texte
+    Écrit la transcription finale dans un fichier texte simple
     """
     with open(output_path, 'w', encoding='utf-8') as f:
         for segment in segments:
@@ -220,6 +243,60 @@ def write_transcription_output(segments, output_path):
             text = segment["text"].strip()
             if text:  # Ne pas écrire les lignes vides
                 f.write(f"[{speaker}] {text}\n")
+
+def write_transcription_output_json(segments, output_path):
+    """
+    Écrit la transcription finale dans un fichier JSON
+    """
+    import json
+    data = []
+    for segment in segments:
+        data.append({
+            "speaker": segment.get("speaker_number", "Locuteur inconnu"),
+            "text": segment["text"].strip(),
+            "start_time": segment.get("start", 0),
+            "end_time": segment.get("end", 0)
+        })
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+def write_transcription_output_srt(segments, output_path):
+    """
+    Écrit la transcription finale dans un fichier SRT (subtitles)
+    """
+    def format_time(seconds):
+        """Convert seconds to SRT time format: HH:MM:SS,mmm"""
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millisecs = int((seconds - int(seconds)) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millisecs:03d}"
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        for i, segment in enumerate(segments, start=1):
+            speaker = segment.get("speaker_number", "Locuteur inconnu")
+            text = segment["text"].strip()
+            if not text:
+                continue
+
+            start_time = format_time(segment.get("start", 0))
+            end_time = format_time(segment.get("end", 0))
+
+            f.write(f"{i}\n")
+            f.write(f"{start_time} --> {end_time}\n")
+            f.write(f"[{speaker}] {text}\n\n")
+
+def write_transcription_output(segments, output_path, format="txt"):
+    """
+    Écrit la transcription finale dans le format spécifié
+    """
+    if format == "json":
+        write_transcription_output_json(segments, output_path)
+    elif format == "srt":
+        write_transcription_output_srt(segments, output_path)
+    else:  # default to txt
+        write_transcription_output_txt(segments, output_path)
 
 
 def process_single_file(input_path, output_dir=None):
@@ -257,7 +334,11 @@ def process_single_file(input_path, output_dir=None):
 
         # Étape 2: Transcription
         print("\n2. Transcription avec faster-whisper...")
-        transcription_result, language = transcribe_audio(str(wav_path), language="fr")
+        transcription_result, language = transcribe_audio(
+            str(wav_path),
+            language=args.language,
+            model_size=args.model
+        )
         print(f"Langue détectée: {language}")
 
         if not transcription_result:
@@ -274,7 +355,12 @@ def process_single_file(input_path, output_dir=None):
 
         # Étape 4: Attribution des locuteurs par clustering
         print("\n4. Attribution des locuteurs par clustering...")
-        segments_with_speakers = assign_speakers(features, valid_segments, num_speakers=2)
+        segments_with_speakers = assign_speakers(
+            features,
+            valid_segments,
+            num_speakers=args.speakers if hasattr(args, 'speakers') else None,
+            distance_threshold=args.threshold if hasattr(args, 'threshold') else None
+        )
 
         # Étape 5: Fusion des segments consécutifs
         print("\n5. Fusion des segments consécutifs...")
@@ -286,7 +372,7 @@ def process_single_file(input_path, output_dir=None):
 
         # Étape 7: Écriture de la sortie
         print("\n7. Écriture de la transcription finale...")
-        write_transcription_output(segments_final, str(output_path))
+        write_transcription_output(segments_final, str(output_path), format=args.format)
 
     print(f"\nTranscription terminée! Résultat sauvegardé dans: {output_path}")
     return True
@@ -332,6 +418,33 @@ def main():
     parser.add_argument(
         "-o", "--output",
         help="Répertoire de sortie (par défaut: même répertoire que l'entrée)"
+    )
+    parser.add_argument(
+        "--model",
+        "-m",
+        choices=["tiny", "base", "small", "medium", "large"],
+        default="small",
+        help="Modèle Whisper à utiliser (défaut: small)"
+    )
+    parser.add_argument(
+        "--threshold",
+        "-t",
+        type=float,
+        help="Seuil de distance pour le clustering (si spécifié, override le nombre de locuteurs)"
+    )
+    parser.add_argument(
+        "--language",
+        "-l",
+        type=str,
+        default="fr",
+        help="Langue pour la transcription (ex: fr, en, es, défaut: fr)"
+    )
+    parser.add_argument(
+        "--format",
+        "-f",
+        choices=["txt", "json", "srt"],
+        default="txt",
+        help="Format de sortie (txt, json, srt, défaut: txt)"
     )
     parser.add_argument(
         "--list-devices",
