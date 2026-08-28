@@ -108,6 +108,5 @@ Fichier `[nom_fichier_source]_transcription.srt` :
 - Sur un CPU moyen, attendez-vous à ce que le traitement prenne environ 1-2x la durée de l'audio
 - Aucune authentification Hugging Face n'est requise contrairement aux solutions basées sur pyannote.audio
 - La solution est entièrement open-source et fonctionne localement sans envoyer de données à des serveurs externes
-<<<<<<< HEAD
 - Le clustering peut être contrôlé soit par `--speakers` (nombre de locuteurs) soit par `--threshold` (seuil de distance), mais pas les deux en même temps
 
